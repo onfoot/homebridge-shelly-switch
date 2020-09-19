@@ -34,9 +34,11 @@ Example for when username and password are "admin" (not recommended!):
 }
 ```
 
+# Status notifications
+
 Shellies have the ability to call action URLs in the event of switches changing their state. This frees the plugin from constantly polling the status of the switch, and instead will get pinged on the status update, which improves responsiveness of any HomeKit actions that could be performed, especially when using the physical switch or an automation. For example, if it's dark outside, after I turn on Kitchen light, kitchen counter lights turn on too.
 
-If you want to set up the notifications, you need to add a `notification_port` option to the top plugin config dictionary with a specified HTTP port on which the plugin will listen.
+If you want to set up the notifications, which is highly recommended, you need to add a `notification_port` option to the top plugin config dictionary with a specified HTTP port on which the plugin will listen.
 
 Example:
 
@@ -48,4 +50,4 @@ Example:
 }
 ```
 
-The action URLs you need to define in Shelly configuration Actions section (for `OUTPUT SWITCHED ON URL`, `OUTPUT SWITCHED OFF URL`, or `BUTTON LONG PRESSED ON`) shall be `http://<homebridge-host-ip>:<notification_port>/status`, e.g. `http://192.168.0.1:54200/status`.
+The action URLs you need to set up in Shelly configuration Actions section (for `OUTPUT SWITCHED ON URL` and `OUTPUT SWITCHED OFF URL`) shall be `http://<homebridge-host-ip>:<notification_port>/status`, e.g. `http://192.168.0.1:54220/status`.
