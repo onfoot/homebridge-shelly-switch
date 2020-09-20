@@ -51,3 +51,8 @@ Example:
 ```
 
 The action URLs you need to set up in Shelly configuration Actions section (for `OUTPUT SWITCHED ON URL` and `OUTPUT SWITCHED OFF URL`) shall be `http://<homebridge-host-ip>:<notification_port>/status`, e.g. `http://192.168.0.1:54220/status`.
+
+
+# Notes
+
+Authentication and status polling are not working yet. And I'm certain I'll be implementing the plugin as a platform accessory in the next release, so changes are for sure coming. Handle with care.
