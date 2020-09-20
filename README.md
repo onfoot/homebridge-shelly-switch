@@ -56,3 +56,5 @@ The action URLs you need to set up in Shelly configuration Actions section (for 
 # Notes
 
 Authentication and status polling are not working yet. And I'm certain I'll be implementing the plugin as a platform accessory in the next release, so changes are for sure coming. Handle with care.
+
+Two and more relay switches are not yet supported. Will probably implement Shelly 2.5 in relay mode (as shutter mode is supported by my [other](https://github.com/onfoot/homebridge-shelly-shutter) plugin).
