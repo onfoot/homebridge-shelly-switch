@@ -1,6 +1,6 @@
 # homebridge-shelly-switch
 
-`homebridge-shelly-switch` is a [Homebridge](https://github.com/nfarina/homebridge) plugin you can use to control your Shelly 1 in-wall switch. I've had it with only Shelly's CoAP not working so I made a purely HTTP plugin. The configuration is a bit more cumbersome, but there's no magic, just pure HTTP calls to the Switch and the other way around.
+`homebridge-shelly-switch` is a [Homebridge](https://github.com/nfarina/homebridge) plugin you can use to control your Shelly 1 in-wall switch. I've had it with only Shelly's CoAP not working reliably so I made a purely HTTP plugin. The configuration is a bit more cumbersome, but there's no magic, just HTTP calls in both ways.
 
 ## Installation
 
