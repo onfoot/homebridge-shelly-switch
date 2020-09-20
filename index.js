@@ -52,8 +52,8 @@ class ShellySwitch {
             const key = 'switch' + i;
             let switchService = new Service.Switch(el.name, key);
             switchService.getCharacteristic(Characteristic.On)
-                .on('get', this.getSwitchStatus.bind(this, key, el))
-                .on('set', this.setSwitchStatus.bind(this, key, el));
+                .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
+                .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
                 
             this.services.set(key, switchService);
             this.indexes.set(key, i);
@@ -106,7 +106,7 @@ class ShellySwitch {
 
         const url = 'http://' + device.ip + `/relay/0/?turn=${status ? "on" : "off"}`;
         log.debug(`url: ${url}`);
-        this.sendJSONRequest(url, 'POST')
+        this.sendJSONRequest({url: url, method: 'POST'})
             .then((response) => {
                 this.current_status.set(id, response);
                 this.current_status_time.set(id, Date.now());
@@ -160,19 +160,24 @@ class ShellySwitch {
     }
 
     updateInterval() {
-        return 10000;
+        return 60000;
     }
 
-    clearUpdateTimer() {
-        // clearTimeout(this.status_timer);
+    clearUpdateTimer(id) {
+        if (this.status_timer.has(id)) {
+            clearTimeout(this.status_timer.get(id));
+        }
     }
 
-    setupUpdateTimer() {
+    setupUpdateTimer(id) {
         if (this.notification_server) { // don't schedule status updates for polling - we have them pushed by the switch
           return;
         }
 
-        // this.status_timer = setTimeout(() => { this.updateStatus(true); }, this.updateInterval());
+        this.clearUpdateTimer(id);
+        this.status_timer.set(
+            id, 
+            setTimeout(() => { this.updateStatus(true, id); }, this.updateInterval()));
     }
 
     needsUpdate() {
@@ -208,13 +213,13 @@ class ShellySwitch {
                 return;
             }
     
-            this.clearUpdateTimer();
-    
-            this.log.debug(`Executing update, forced: ${forced}`);
+            this.clearUpdateTimer(id);
     
             this.status_callbacks.get(id).push(callback);
+
+            const device = this.devices[this.indexes.get(id)];
     
-            this.sendJSONRequest('http://' + this.devices[this.indexes.get(id)].ip + '/relay/0')
+            this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication})
                 .then((response) => {
                     this.current_status.set(id, response);
                     this.current_status_time.set(id, Date.now());
@@ -244,13 +249,17 @@ class ShellySwitch {
 
     }
 
-    sendJSONRequest(url, method = 'GET', payload = null) {
+    sendJSONRequest(params) {
         return new Promise((resolve, reject) => {
 
-            const components = new urllib.URL(url);
+            if (!params.url) {
+                reject(Error('Request URL missing'));
+            }
+
+            const components = new urllib.URL(params.url);
 
             const options = {
-                method: method,
+                method: params.method || 'GET',
                 host: components.hostname,
                 port: components.port,
                 path: components.pathname + (components.search ? components.search : ''),
@@ -258,8 +267,8 @@ class ShellySwitch {
                 headers: { 'Content-Type': 'application/json' }
             };
 
-            if (this.authentication) {
-                let credentials = Buffer.from(this.authentication).toString('base64');
+            if (params.authentication) {
+                let credentials = Buffer.from(params.authentication).toString('base64');
                 options.headers['Authorization'] = 'Basic ' + credentials;
             }
 
@@ -282,8 +291,8 @@ class ShellySwitch {
                 reject(err);
             });
 
-            if (payload) {
-                const stringified = JSON.stringify(payload);
+            if (params.payload) {
+                const stringified = JSON.stringify(params.payload);
                 this.log(`sending payload: ${stringified}`);
                 req.write(stringified);
             }
