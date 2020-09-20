@@ -60,3 +60,5 @@ Authentication and status polling are not working yet. And I'm certain I'll be i
 Two and more relay switches are not yet supported. Will probably implement Shelly 2.5 in relay mode (as shutter mode is supported by my [other](https://github.com/onfoot/homebridge-shelly-shutter) plugin).
 
 I'll also most likely expose the short/long press actions as programmable HomeKit buttons.
+
+I'm also toying with an idea of setting up the action URLs in the switch settings automatically once status notifications are enabled.
