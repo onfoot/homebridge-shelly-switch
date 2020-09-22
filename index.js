@@ -56,20 +56,15 @@ class ShellySwitch {
 
                 let accessory = this.accessories.find(accessory => accessory.UUID == uuid);
                 let switchService;
-                let infoService;
 
                 if (!accessory) {
                     accessory = new this.api.platformAccessory(el.name, uuid);
                     switchService = new api.hap.Service.Switch();
                     accessory.addService(switchService);
 
-                    infoService = new Service.AccessoryInformation();
-                    accessory.addService(infoService);
-
                     this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                 } else {
                     switchService = accessory.getService(Service.Switch);
-                    infoService = accessory.getService(Service.AccessoryInformation);
                 }
 
                 switchService.getCharacteristic(Characteristic.On)
@@ -78,15 +73,6 @@ class ShellySwitch {
 
                 switchService.getCharacteristic(Characteristic.Name)
                     .on('get', (callback) => { callback(el.name) } );
-
-                    
-                infoService.getCharacteristic(Characteristic.Manufacturer)
-                    .on('get', (callback) => { callback('Allterco Robotics Ltd.') });
-
-                
-                infoService.getCharacteristic(Characteristic.Model)
-                    .on('get', (callback) => { callback('Shelly 1') });
-
 
                 this.services.set(key, switchService);
                 this.indexes.set(key, i);
