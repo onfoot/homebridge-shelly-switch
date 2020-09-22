@@ -77,11 +77,16 @@ class ShellySwitch {
                     .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
 
                 switchService.getCharacteristic(Characteristic.Name)
-                    .on('get', (callback) => { callback(el.name) } )
+                    .on('get', (callback) => { callback(el.name) } );
 
-                infoService
-                    .setCharacteristic(Characteristic.Manufacturer, 'Allterco Robotics Ltd.')
-                    .setCharacteristic(Characteristic.Model, 'Shelly 1');
+                    
+                infoService.getCharacteristic(Characteristic.Manufacturer)
+                    .on('get', (callback) => { callback('Allterco Robotics Ltd.') });
+
+                
+                infoService.getCharacteristic(Characteristic.Model)
+                    .on('get', (callback) => { callback('Shelly 1') });
+
 
                 this.services.set(key, switchService);
                 this.indexes.set(key, i);
