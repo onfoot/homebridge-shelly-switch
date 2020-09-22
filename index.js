@@ -5,16 +5,21 @@ const urllib = require('url');
 
 let Accessory, Service, Characteristic, UUIDGen;
 
-module.exports = function (homebridge) {
-    Accessory = homebridge.platformAccessory;
-    Service = homebridge.hap.Service;
-    Characteristic = homebridge.hap.Characteristic;
-    UUIDGen = homebridge.hap.uuid;
-    homebridge.registerAccessory('homebridge-shelly-switch', 'shelly-switch', ShellySwitch);
+const PLUGIN_NAME = "homebridge-shelly-switch";
+const PLATFORM_NAME = "Shelly Switch";
+
+module.exports = function (api) {
+    Service = api.hap.Service;
+    Characteristic = api.hap.Characteristic;
+    UUIDGen = api.hap.uuid;
+    api.registerPlatform(PLATFORM_NAME, ShellySwitch);
 };
 
 class ShellySwitch {
-    constructor(log, config) {
+    constructor(log, config, api) {
+        this.api = api;
+        this.accessories = [];
+
         this.services = new Map();
         this.log = log;
         this.devices = config.devices;
@@ -32,31 +37,56 @@ class ShellySwitch {
             }
         });
 
-        if (this.notification_port) {
-            this.log.debug(`Starting status notification server at port ${this.notification_port}`);
-            this.notification_server = http.createServer((req, res) => {
-                this.serverHandler(req, res);
-            });
-            this.notification_server.listen(this.notification_port, () => {
-                this.log.debug(`Started status notification server at port ${this.notification_port}`);
-            });
-        }
+        api.on('didFinishLaunching', () => {
+            if (this.notification_port) {
+                this.log.debug(`Starting status notification server at port ${this.notification_port}`);
+                this.notification_server = http.createServer((req, res) => {
+                    this.serverHandler(req, res);
+                });
+                this.notification_server.listen(this.notification_port, () => {
+                    this.log.debug(`Started status notification server at port ${this.notification_port}`);
+                });
+            }
+    
+            // Set up switches
 
-        this.serviceInfo = new Service.AccessoryInformation();
-        this.serviceInfo
-            .setCharacteristic(Characteristic.Manufacturer, 'Allterco Robotics Ltd.')
-            .setCharacteristic(Characteristic.Model, 'Shelly 1');
-        this.services.set('info', this.serviceInfo);
+            this.devices.forEach((el, i, arr) => {
+                const key = 'switch' + i;
+                const uuid = this.api.hap.uuid.generate(`homebridge-shelly-switch:platform:accessory:${key}`);
 
-        this.devices.forEach((el, i, arr) => {
-            const key = 'switch' + i;
-            let switchService = new Service.Switch(el.name, key);
-            switchService.getCharacteristic(Characteristic.On)
-                .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
-                .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
-                
-            this.services.set(key, switchService);
-            this.indexes.set(key, i);
+                let accessory = this.accessories.find(accessory => accessory.UUID == uuid);
+                let switchService;
+                let infoService;
+
+                if (!accessory) {
+                    accessory = new this.api.platformAccessory(el.name, uuid);
+                    switchService = new api.hap.Service.Switch();
+                    accessory.addService(switchService);
+
+                    infoService = new Service.AccessoryInformation();
+                    accessory.addService(infoService);
+
+                    this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+                } else {
+                    switchService = accessory.getService(Service.Switch);
+                    infoService = accessory.getService(Service.AccessoryInformation);
+                }
+
+                switchService.getCharacteristic(Characteristic.On)
+                    .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
+                    .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
+
+                switchService.getCharacteristic(Characteristic.Name)
+                    .on('get', (callback) => { callback(el.name) } )
+
+                infoService
+                    .setCharacteristic(Characteristic.Manufacturer, 'Allterco Robotics Ltd.')
+                    .setCharacteristic(Characteristic.Model, 'Shelly 1');
+
+                this.services.set(key, switchService);
+                this.indexes.set(key, i);
+
+            });
         });
 
         this.updateStatus(true);
@@ -96,9 +126,13 @@ class ShellySwitch {
         res.end('Not Found');
     }
 
-    getServices() {
-        return [...this.services.values()];
+    configureAccessory(accessory) {
+        this.accessories.push(accessory);
     }
+
+    /*getServices() {
+        return [...this.services.values()];
+    }*/
 
     setSwitchStatus(id, device, status, callback) {
         var log = this.log;
@@ -160,7 +194,7 @@ class ShellySwitch {
     }
 
     updateInterval() {
-        return 60000;
+        return 30000;
     }
 
     clearUpdateTimer(id) {
