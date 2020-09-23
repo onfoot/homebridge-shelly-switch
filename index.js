@@ -25,7 +25,7 @@ class ShellySwitch {
     }
 
     deviceButtonUuid(device) {
-        const key = `switch-${device.ip}-button0`;
+        const key = `switch-${device.ip}-button-0`;
         const uri = `homebridge-shelly-switch:platform:accessory:${key}`;
         const uuid = this.api.hap.uuid.generate(uri);
 
@@ -136,7 +136,7 @@ class ShellySwitch {
                     this.log.debug(`Found programmable switch service of ${programmableSwitch.UUID}`);
                 }
 
-                const buttonKey = key + 'button0';
+                const buttonKey = key + 'button-0';
 
                 this.indexes.set(buttonKey, i);
                 this.buttonDevices.set(key, programmableSwitch);
@@ -188,7 +188,7 @@ class ShellySwitch {
             return;
         }
 
-        if (req.url.endsWith('/button0/short')) {
+        if (req.url.endsWith('/button/0/short')) {
 
             this.triggerShortPress(foundId);
 
@@ -197,7 +197,7 @@ class ShellySwitch {
             return;
         }
 
-        if (req.url.endsWith('/button0/long')) {
+        if (req.url.endsWith('/button/0/long')) {
 
             this.triggerLongPress(foundId);
 
