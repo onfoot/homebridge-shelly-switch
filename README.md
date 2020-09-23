@@ -57,6 +57,4 @@ The action URLs you need to set up in Shelly configuration Actions section (for 
 
 Two and more relay switches are not yet supported. Will probably implement Shelly 2.5 in relay mode (as shutter mode is supported by my [other](https://github.com/onfoot/homebridge-shelly-shutter) plugin).
 
-I'll also most likely expose the short/long press actions as programmable HomeKit buttons.
-
 I'm also toying with an idea of setting up the action URLs in the switch settings automatically once status notifications are enabled.
