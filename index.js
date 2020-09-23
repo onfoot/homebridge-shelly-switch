@@ -32,7 +32,6 @@ class ShellySwitch {
         return uuid;
     }
 
-
     constructor(log, config, api) {
         this.api = api;
         this.accessories = [];
@@ -49,10 +48,13 @@ class ShellySwitch {
         this.notification_port = config.notification_port || null;
         this.buttonDevices = new Map();
 
-
         this.devices.forEach ((el) => {
             if (!el.ip) {
-                throw new Error('You must provide an ip address of the switch.');
+                throw new Error('Address of the switch is missing');
+            }
+
+            if (!el.name) {
+                throw new Error('Name of the switch is missing');
             }
         });
 
@@ -63,88 +65,94 @@ class ShellySwitch {
 
 
         api.on('didFinishLaunching', () => {
-            if (this.notification_port) {
-                this.log.debug(`Starting status notification server at port ${this.notification_port}`);
-                this.notification_server = http.createServer((req, res) => {
-                    this.serverHandler(req, res);
-                });
-                this.notification_server.listen(this.notification_port, () => {
-                    this.log.debug(`Started status notification server at port ${this.notification_port}`);
-                });
-            }
-
-            this.accessories.forEach((el, i) => {
-
-                let device = this.uuids.get(el.UUID);
-                if (device === undefined) {
-                    this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [el]);
-                }
-            });
-    
-            // Set up switches
-
-            this.devices.forEach((el, i) => {
-                const key = `switch-${el.ip}`;
-                const uri = `homebridge-shelly-switch:platform:accessory:${key}`;
-                const uuid = this.deviceUuid(el);
-
-                let accessory = this.accessories.find(accessory => accessory.UUID == uuid);
-                let switchService;
-
-                if (!accessory) {
-                    accessory = new this.api.platformAccessory(el.name, uuid);
-                    switchService = new api.hap.Service.Switch();
-                    accessory.addService(switchService);
-
-                    this.log.debug(`Registering switch accessory: ${uuid} for ${el.name}`);
-                    this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-                } else {
-                    switchService = accessory.getService(Service.Switch);
-                }
-
-                switchService.getCharacteristic(Characteristic.On)
-                    .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
-                    .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
-
-                switchService.getCharacteristic(Characteristic.Name)
-                    .on('get', (callback) => { callback(el.name) } );
-
-                this.services.set(key, switchService);
-                this.indexes.set(key, i);
-
-                this.log.debug(`Checking if ${key} can expose a programmable button`);
-                this.canExposeButton(key, (canExposeButton) => {
-
-                    let programmableSwitch = accessory.getService(Service.StatelessProgrammableSwitch);
-
-                    if (typeof(canExposeButton) == Error || !canExposeButton) {
-                        if (programmableSwitch) {
-                            accessory.removeService(programmableSwitch);
-                        }
-                        return;
-                    }
-
-                    if (!programmableSwitch) {
-                        programmableSwitch = new api.hap.Service.StatelessProgrammableSwitch(el.name + ' Button');
-                        programmableSwitch
-                            .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
-                            .setProps( { minValue: 0, maxValue: 2, validValues: [0, 2] }); // short and long press
-
-                        accessory.addService(programmableSwitch);
-                    } else {
-                        this.log.debug(`Found programmable switch service of ${programmableSwitch.UUID}`);
-                    }
-
-                    const buttonKey = key + 'button0';
-
-                    this.indexes.set(buttonKey, i);
-                    this.buttonDevices.set(key, programmableSwitch);
-                
-                });
-            });
+            this.setupServer();
+            this.cleanupUnknownDevices();
+            this.setupDevices();
         });
 
         this.updateStatus(true);
+    }
+
+    setupServer() {
+        if (this.notification_port) {
+            this.log.debug(`Starting status notification server at port ${this.notification_port}`);
+            this.notification_server = http.createServer((req, res) => {
+                this.serverHandler(req, res);
+            });
+            this.notification_server.listen(this.notification_port, () => {
+                this.log.debug(`Started status notification server at port ${this.notification_port}`);
+            });
+        }
+    }
+
+    setupDevices() {
+        this.devices.forEach((el, i) => {
+            const key = `switch-${el.ip}`;
+            const uri = `homebridge-shelly-switch:platform:accessory:${key}`;
+            const uuid = this.deviceUuid(el);
+
+            let accessory = this.accessories.find(accessory => accessory.UUID == uuid);
+            let switchService;
+
+            if (!accessory) {
+                accessory = new this.api.platformAccessory(el.name, uuid);
+                switchService = new api.hap.Service.Switch();
+                accessory.addService(switchService);
+
+                this.log.debug(`Registering switch accessory: ${uuid} for ${el.name}`);
+                this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+            } else {
+                switchService = accessory.getService(Service.Switch);
+            }
+
+            switchService.getCharacteristic(Characteristic.On)
+                .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
+                .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
+
+            switchService.getCharacteristic(Characteristic.Name)
+                .on('get', (callback) => { callback(el.name) } );
+
+            this.services.set(key, switchService);
+            this.indexes.set(key, i);
+
+            this.canExposeButton(key, (canExposeButton) => {
+                let programmableSwitch = accessory.getService(Service.StatelessProgrammableSwitch);
+
+                if (typeof(canExposeButton) == Error || !canExposeButton) {
+                    if (programmableSwitch) {
+                        accessory.removeService(programmableSwitch);
+                    }
+                    return;
+                }
+
+                if (!programmableSwitch) {
+                    programmableSwitch = new api.hap.Service.StatelessProgrammableSwitch(el.name + ' Button');
+                    programmableSwitch
+                        .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
+                        .setProps( { minValue: 0, maxValue: 2, validValues: [0, 2] }); // short and long press
+
+                    accessory.addService(programmableSwitch);
+                } else {
+                    this.log.debug(`Found programmable switch service of ${programmableSwitch.UUID}`);
+                }
+
+                const buttonKey = key + 'button0';
+
+                this.indexes.set(buttonKey, i);
+                this.buttonDevices.set(key, programmableSwitch);
+            
+            });
+        });
+    }
+
+    cleanupUnknownDevices() {
+        this.accessories.forEach((el, i) => {
+
+            let device = this.uuids.get(el.UUID);
+            if (device === undefined) {
+                this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [el]);
+            }
+        });
     }
 
     serverHandler(req, res) {
@@ -223,24 +231,24 @@ class ShellySwitch {
 
 
 
-    setSwitchStatus(id, device, status, callback) {
+    async setSwitchStatus(id, device, status, callback) {
         var log = this.log;
         log.debug(`Setting status of device ${device.ip} to '${status}'`);
 
         const url = 'http://' + device.ip + `/relay/0/?turn=${status ? "on" : "off"}`;
         log.debug(`url: ${url}`);
-        this.sendJSONRequest({url: url, method: 'POST'})
-            .then((response) => {
-                this.current_status.set(id, response);
-                this.current_status_time.set(id, Date.now());
 
-                callback();
-                this.updateStatus(false, id);
-            })
-            .catch((e) => {
-                log.error(`Failed to change switch status: ${e}`);
-                setTimeout(() => { callback(e); this.updateStatus(true, id); }, 3000);
-            });
+        try {
+            let response = this.sendJSONRequest({url: url, method: 'POST'})
+            this.current_status.set(id, response);
+            this.current_status_time.set(id, Date.now());
+
+            callback();
+            this.updateStatus(false, id);
+        } catch (e) {
+            log.error(`Failed to change switch status: ${e}`);
+            setTimeout(() => { callback(e); this.updateStatus(true, id); }, 3000);
+        }
     }
 
     getSwitchStatus(id, device, callback) {
@@ -307,7 +315,7 @@ class ShellySwitch {
         return true;
     };
 
-    getStatus(id, forced, callback) {
+    async getStatus(id, forced, callback) {
         let identifiers;
         if (!id) {
             identifiers = [ ...this.indexes.keys()];
@@ -315,7 +323,7 @@ class ShellySwitch {
             identifiers = [id];
         }
 
-        identifiers.forEach((id) => {
+        identifiers.forEach(async (id) => {
             if (!this.status_callbacks.has(id)) {
                 this.status_callbacks.set(id, []);
             }
@@ -342,63 +350,49 @@ class ShellySwitch {
 
             const device = this.devices[this.indexes.get(id)];
     
-            this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication})
-                .then((response) => {
-                    this.current_status.set(id, response);
-                    this.current_status_time.set(id, Date.now());
-                    const callbacks = this.status_callbacks.get(id);
-                    this.status_callbacks.set(id, []);
-    
-                    this.log.debug(`Calling ${callbacks.length} queued callbacks`);
-                    callbacks.forEach((element) => {
-                        element(null, response);
-                    });
-                    this.setupUpdateTimer(id);
-                })
-                .catch((e) => {
-                    this.log.error(`Error parsing current status info: ${e}`);
-                    const callbacks = this.status_callbacks.get(id);
-                    this.status_callbacks.set(id, []);
-    
-                    callbacks.forEach((element) => {
-                        element(e);
-                    });
-    
-                    this.setupUpdateTimer(id);
+            try {
+                let response = this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication});
+                this.current_status.set(id, response);
+                this.current_status_time.set(id, Date.now());
+                const callbacks = this.status_callbacks.get(id);
+                this.status_callbacks.set(id, []);
+
+                this.log.debug(`Calling ${callbacks.length} queued callbacks`);
+                callbacks.forEach((element) => {
+                    element(null, response);
                 });
-    
-        });
+                this.setupUpdateTimer(id);
+            } catch (e) {
+                this.log.error(`Error parsing current status info: ${e}`);
+                const callbacks = this.status_callbacks.get(id);
+                this.status_callbacks.set(id, []);
 
+                callbacks.forEach((element) => {
+                    element(e);
+                });
 
-    }
-
-    canExposeButton(id, callback) {
-        this.getSettings(id, (settings) => {
-            if (typeof(settings) == Error) {
-                callback(settings);
-                return;
+                this.setupUpdateTimer(id);
             }
-
-            this.log.debug(JSON.stringify(settings.relays));
-
-            callback(settings.relays[0].btn_type == 'momentary');
         });
+
+
     }
 
-    getSettings(id, callback) {
+    async canExposeButton(id, callback) {
+        try {
+            let settings = await this.getSettings(id);
+            callback(settings.relays[0].btn_type == 'momentary');
+        } catch(e) {
+            callback(e);
+        }
+    }
+
+    async getSettings(id) {
         const device = this.devices[this.indexes.get(id)];
-
-        this.sendJSONRequest({url: 'http://' + device.ip + '/settings', authentication: device.authentication})
-            .then((response) => {
-                callback(response);
-            })
-            .catch((e) => {
-                this.log.error(`Error parsing relay config: ${e}`);
-                callback(e);
-            });
+        return await this.sendJSONRequest({url: 'http://' + device.ip + '/settings', authentication: device.authentication})
     }
 
-    sendJSONRequest(params) {
+    async sendJSONRequest(params) {
         return new Promise((resolve, reject) => {
 
             if (!params.url) {
