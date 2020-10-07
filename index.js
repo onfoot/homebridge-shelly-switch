@@ -375,7 +375,9 @@ class ShellySwitch {
     }
 
     isExposable(type) {
-        return type === 'momentary' || type === 'detached';
+        const exposable = type === 'momentary' || type === 'detached';
+        this.log.debug(`Is ${type} exposable? ${exposable}`);
+        return exposable;
     }
 
     async canExposeButton(id, callback) {
@@ -384,7 +386,7 @@ class ShellySwitch {
             if (!settings['relays']) {
                 callback(Error('No relays found'));
             }
-            callback(isExposable(settings.relays[0].btn_type));
+            callback(this.isExposable(settings.relays[0].btn_type));
         } catch(e) {
             callback(e);
         }
