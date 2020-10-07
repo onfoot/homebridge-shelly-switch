@@ -64,7 +64,7 @@ class ShellySwitch {
         });
 
 
-        api.on('didFinishLaunching', () => {
+        this.api.on('didFinishLaunching', () => {
             this.cleanupUnknownDevices();
             this.configureDevices();
             this.configureServer();
@@ -96,7 +96,7 @@ class ShellySwitch {
 
             if (!accessory) {
                 accessory = new this.api.platformAccessory(el.name, uuid);
-                switchService = new api.hap.Service.Switch();
+                switchService = new this.api.hap.Service.Switch();
                 accessory.addService(switchService);
 
                 this.log.debug(`Registering switch accessory: ${uuid} for ${el.name}`);
@@ -126,7 +126,7 @@ class ShellySwitch {
                 }
 
                 if (!programmableSwitch) {
-                    programmableSwitch = new api.hap.Service.StatelessProgrammableSwitch(el.name + ' Button');
+                    programmableSwitch = new this.api.hap.Service.StatelessProgrammableSwitch(el.name + ' Button');
                     programmableSwitch
                         .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
                         .setProps( { minValue: 0, maxValue: 2, validValues: [0, 2] }); // short and long press
