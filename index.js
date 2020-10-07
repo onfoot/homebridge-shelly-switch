@@ -65,15 +65,15 @@ class ShellySwitch {
 
 
         api.on('didFinishLaunching', () => {
-            this.setupServer();
             this.cleanupUnknownDevices();
-            this.setupDevices();
+            this.configureDevices();
+            this.configureServer();
         });
 
         this.updateStatus(true);
     }
 
-    setupServer() {
+    configureServer() {
         if (this.notification_port) {
             this.log.debug(`Starting status notification server at port ${this.notification_port}`);
             this.notification_server = http.createServer((req, res) => {
@@ -85,7 +85,7 @@ class ShellySwitch {
         }
     }
 
-    setupDevices() {
+    configureDevices() {
         this.devices.forEach((el, i) => {
             const key = `switch-${el.ip}`;
             const uri = `homebridge-shelly-switch:platform:accessory:${key}`;
@@ -107,7 +107,7 @@ class ShellySwitch {
 
             switchService.getCharacteristic(Characteristic.On)
                 .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
-                .on('set', (value, callback) => { this.setSwitchStatus(key, el, value, callback) } );
+                .on('set', (value, callback) => { this.setSwitchStatus(key, el, 0, value, callback) } );
 
             switchService.getCharacteristic(Characteristic.Name)
                 .on('get', (callback) => { callback(el.name) } );
@@ -156,7 +156,6 @@ class ShellySwitch {
     }
 
     serverHandler(req, res) {
-
         this.log.debug(`Notification received from ${req.socket.remoteAddress}`);
         // find the device
         let remoteAddress = req.socket.remoteAddress;
@@ -190,7 +189,7 @@ class ShellySwitch {
 
         if (req.url.endsWith('/button/0/short')) {
 
-            this.triggerShortPress(foundId);
+            this.triggerShortPress(foundId, 0);
 
             res.writeHead(200);
             res.end('OK');
@@ -199,7 +198,7 @@ class ShellySwitch {
 
         if (req.url.endsWith('/button/0/long')) {
 
-            this.triggerLongPress(foundId);
+            this.triggerLongPress(foundId, 0);
 
             res.writeHead(200);
             res.end('OK');
@@ -211,11 +210,10 @@ class ShellySwitch {
     }
 
     configureAccessory(accessory) {
-        
         this.accessories.push(accessory);
     }
 
-    triggerShortPress(id) {
+    triggerShortPress(id, index) {
         const service = this.buttonDevices.get(id);
         service
             .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
@@ -229,13 +227,11 @@ class ShellySwitch {
             .setValue(Characteristic.ProgrammableSwitchEvent.LONG_PRESS);
     }
 
-
-
-    async setSwitchStatus(id, device, status, callback) {
+    async setSwitchStatus(id, device, index, status, callback) {
         var log = this.log;
         log.debug(`Setting status of device ${device.ip} to '${status}'`);
 
-        const url = 'http://' + device.ip + `/relay/0/?turn=${status ? "on" : "off"}`;
+        const url = 'http://' + device.ip + `/relay/${index}/?turn=${status ? "on" : "off"}`;
         log.debug(`url: ${url}`);
 
         try {
@@ -378,10 +374,17 @@ class ShellySwitch {
 
     }
 
+    isExposable(type) {
+        return type === 'momentary' || type === 'detached';
+    }
+
     async canExposeButton(id, callback) {
         try {
             let settings = await this.getSettings(id);
-            callback(settings.relays[0].btn_type == 'momentary');
+            if (!settings['relays']) {
+                callback(Error('No relays found'));
+            }
+            callback(isExposable(settings.relays[0].btn_type));
         } catch(e) {
             callback(e);
         }
