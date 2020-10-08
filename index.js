@@ -235,7 +235,7 @@ class ShellySwitch {
         log.debug(`url: ${url}`);
 
         try {
-            let response = this.sendJSONRequest({url: url, method: 'POST'})
+            let response = await this.sendJSONRequest({url: url, method: 'POST'})
             this.current_status.set(id, response);
             this.current_status_time.set(id, Date.now());
 
@@ -347,7 +347,7 @@ class ShellySwitch {
             const device = this.devices[this.indexes.get(id)];
     
             try {
-                let response = this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication});
+                let response = await this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication});
                 this.current_status.set(id, response);
                 this.current_status_time.set(id, Date.now());
                 const callbacks = this.status_callbacks.get(id);
