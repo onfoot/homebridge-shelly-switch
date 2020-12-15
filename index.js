@@ -235,7 +235,7 @@ class ShellySwitch {
         log.debug(`url: ${url}`);
 
         try {
-            let response = await this.sendJSONRequest({url: url, method: 'POST'})
+            let response = await this.sendJSONRequest({url: url, method: 'POST', authentication: device.authentication})
             this.current_status.set(id, response);
             this.current_status_time.set(id, Date.now());
 
