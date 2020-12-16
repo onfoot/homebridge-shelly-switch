@@ -53,6 +53,10 @@ Example:
 The action URLs you need to set up in Shelly configuration Actions section (for `OUTPUT SWITCHED ON URL` and `OUTPUT SWITCHED OFF URL`) shall be `http://<homebridge-host-ip>:<notification_port>/status`, e.g. `http://192.168.0.1:54220/status`.
 
 
+# Short and long press actions
+
+If a device has a short- and long-pressable button, i.e. configured as either detached or momentary, a programmable button accessory will also appear for that switch, so you'll be able to set up custom actions in the Home app for them. They are expected to be triggered by Shelly launching `http://<homebridge-host-ip>:<notification_port>/button/0/short` and `http://<homebridge-host-ip>:<notification_port>/button/0/long` action URLs, configured in `BUTTON SHORT PRESSED URL` and `BUTTON LONG PRESSED URL` respectively.
+
 # Notes
 
 Two and more relay switches are not yet supported. Will probably implement Shelly 2.5 in relay mode (as shutter mode is supported by my [other](https://github.com/onfoot/homebridge-shelly-shutter) plugin).
