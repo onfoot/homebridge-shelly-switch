@@ -109,13 +109,13 @@ class ShellySwitch {
             }
 
             deviceService.getCharacteristic(Characteristic.On)
-                .on('get', (callback) => { this.getSwitchStatus(key, device, callback) } )
+                .on('get', (callback) => { this.getSwitchStatus(key, device, callback, Characteristic.On) } )
                 .on('set', (value, callback) => { this.setSwitchStatus(key, device, 0, value, callback) } );
 
             if (this.isDimmer(device)) {
               deviceService.getCharacteristic(Characteristic.Brightness)
                 .on('get', (callback) => {
-                  this.getSwitchStatus(key, device, callback);
+                  this.getSwitchStatus(key, device, callback, Characteristic.Brightness);
                 })
                 .on('set', (value, callback) => {
                   this.log.info('brightness', value);
@@ -270,16 +270,17 @@ class ShellySwitch {
         return 'http://' + device.ip + `/relay/${index}/?${turn}`;
     }
 
-    getSwitchStatus(id, device, callback) {
+    getSwitchStatus(id, device, callback, characteristic) {
         this.getStatus(id, false, (error) => {
             if (error) {
                 callback(error);
                 return;
             }
+            const currentStatus = characteristic === Characteristic.Brightness ?
+                this.current_status.get(id).brightness : this.current_status.get(id).ison == true;
 
-            let isOn = this.current_status.get(id).ison == true;
-
-            callback(null, isOn);
+            this.log.debug({currentStatus, characteristic, device})
+            callback(null, currentStatus);
         });
     }
 
@@ -305,6 +306,14 @@ class ShellySwitch {
                 let isOn = status.ison == true;
                 this.log.debug(`Reported current state for ${id}: ${isOn}`);
                 this.services.get(id).updateCharacteristic(Characteristic.On, isOn);
+
+                const device = this.devices.find(device => device.id === id);
+                this.log.debug(`device ${id}`, device);
+                if (device && this.isDimmer(device)) {
+                    const { brightness } = status;
+                    this.log.debug(`Reported current state for ${id}: brightness=${brightness}`);
+                    this.services.get(id).updateCharacteristic(Characteristic.Brightness, brightness);
+                }
             });
         });
     }
