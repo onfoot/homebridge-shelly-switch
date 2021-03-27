@@ -1,6 +1,6 @@
 {
   "name": "homebridge-shelly-switch",
-  "version": "1.2.3",
+  "version": "0.3.0",
   "description": "A Homebridge plugin for Shelly 1 switch and shelly dimmer 2",
   "license": "MIT",
   "keywords": [
