@@ -34,6 +34,8 @@ To use with Shelly Dimmer 2 you will need to add `deviceType:dimmer` to the devi
     
 ```
 
+## Authentication
+
 If your shelly web interface is restricted with login and password, you need to add a `authentication` option with the value of `<username>:<password>` to device's config.
 
 Example for when username and password are "admin" (not recommended!):
