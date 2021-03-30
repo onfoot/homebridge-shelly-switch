@@ -22,6 +22,18 @@ An entry in `config.json`'s "platforms" section is needed of the following basic
 }
 ```
 
+## Shelly Dimmer 2
+
+To use with Shelly Dimmer 2 you will need to add `deviceType:dimmer` to the device configuration. 
+```
+  {
+    "name": "<e.g. Kitchen>",
+    "deviceType": "dimmer",
+    "ip": "<shelly's ip address>"
+  }
+    
+```
+
 If your shelly web interface is restricted with login and password, you need to add a `authentication` option with the value of `<username>:<password>` to device's config.
 
 Example for when username and password are "admin" (not recommended!):

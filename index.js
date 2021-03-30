@@ -7,6 +7,8 @@ let Accessory, Service, Characteristic, UUIDGen;
 
 const PLUGIN_NAME = "homebridge-shelly-switch";
 const PLATFORM_NAME = "Shelly Switch";
+const DEVICE_TYPE_DIMMER = 'dimmer';
+const DEVICE_TYPE_SWITCH = 'switch';
 
 module.exports = function (api) {
     Service = api.hap.Service;
@@ -86,33 +88,45 @@ class ShellySwitch {
     }
 
     configureDevices() {
-        this.devices.forEach((el, i) => {
-            const key = `switch-${el.ip}`;
+        this.devices.forEach((device, i) => {
+            const key = `switch-${device.ip}`;
             const uri = `homebridge-shelly-switch:platform:accessory:${key}`;
-            const uuid = this.deviceUuid(el);
+            const uuid = this.deviceUuid(device);
 
+            let deviceService;
             let accessory = this.accessories.find(accessory => accessory.UUID == uuid);
-            let switchService;
+            const serviceType = this.isDimmer(device) ? this.api.hap.Service.Lightbulb : this.api.hap.Service.Switch;
 
             if (!accessory) {
-                accessory = new this.api.platformAccessory(el.name, uuid);
-                switchService = new this.api.hap.Service.Switch();
-                accessory.addService(switchService);
+                accessory = new this.api.platformAccessory(device.name, uuid);
+                deviceService = new serviceType();
+                accessory.addService(deviceService);
 
-                this.log.debug(`Registering switch accessory: ${uuid} for ${el.name}`);
+                this.log.debug(`Registering switch accessory: ${uuid} for ${device.name} (deviceType:${device.deviceType})`);
                 this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
             } else {
-                switchService = accessory.getService(Service.Switch);
+                deviceService = accessory.getService(serviceType);
             }
 
-            switchService.getCharacteristic(Characteristic.On)
-                .on('get', (callback) => { this.getSwitchStatus(key, el, callback) } )
-                .on('set', (value, callback) => { this.setSwitchStatus(key, el, 0, value, callback) } );
+            deviceService.getCharacteristic(Characteristic.On)
+                .on('get', (callback) => { this.getSwitchStatus(key, device, callback, Characteristic.On) } )
+                .on('set', (value, callback) => { this.setSwitchStatus(key, device, 0, value, callback) } );
 
-            switchService.getCharacteristic(Characteristic.Name)
-                .on('get', (callback) => { callback(el.name) } );
+            if (this.isDimmer(device)) {
+              deviceService.getCharacteristic(Characteristic.Brightness)
+                .on('get', (callback) => {
+                  this.getSwitchStatus(key, device, callback, Characteristic.Brightness);
+                })
+                .on('set', (value, callback) => {
+                  this.log.info('brightness', value);
+                  this.setSwitchStatus(key, device, 0, value, callback);
+                });
+            }
 
-            this.services.set(key, switchService);
+            deviceService.getCharacteristic(Characteristic.Name)
+                .on('get', (callback) => { callback(device.name) } );
+
+            this.services.set(key, deviceService);
             this.indexes.set(key, i);
 
             this.canExposeButton(key, (canExposeButton) => {
@@ -126,7 +140,7 @@ class ShellySwitch {
                 }
 
                 if (!programmableSwitch) {
-                    programmableSwitch = new this.api.hap.Service.StatelessProgrammableSwitch(el.name + ' Button');
+                    programmableSwitch = new this.api.hap.Service.StatelessProgrammableSwitch(device.name + ' Button');
                     programmableSwitch
                         .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
                         .setProps( { minValue: 0, maxValue: 2, validValues: [0, 2] }); // short and long press
@@ -140,7 +154,7 @@ class ShellySwitch {
 
                 this.indexes.set(buttonKey, i);
                 this.buttonDevices.set(key, programmableSwitch);
-            
+
             });
         });
     }
@@ -231,7 +245,7 @@ class ShellySwitch {
         var log = this.log;
         log.debug(`Setting status of device ${device.ip} to '${status}'`);
 
-        const url = 'http://' + device.ip + `/relay/${index}/?turn=${status ? "on" : "off"}`;
+        const url = this.getSetStatusUrl(device, index, status);
         log.debug(`url: ${url}`);
 
         try {
@@ -247,16 +261,26 @@ class ShellySwitch {
         }
     }
 
-    getSwitchStatus(id, device, callback) {
+    getSetStatusUrl(device, index, status) {
+        const turn = `turn=${status ? 'on' : 'off'}`;
+        if (this.isDimmer(device)) {
+            const brightness = Number.isInteger(status) ? `&brightness=${status}` : '';
+            return 'http://' + device.ip + `/light/${index}/?${turn}${brightness}`;
+        }
+        return 'http://' + device.ip + `/relay/${index}/?${turn}`;
+    }
+
+    getSwitchStatus(id, device, callback, characteristic) {
         this.getStatus(id, false, (error) => {
             if (error) {
                 callback(error);
                 return;
             }
-            
-            let isOn = this.current_status.get(id).ison == true;
+            const currentStatus = characteristic === Characteristic.Brightness ?
+                this.current_status.get(id).brightness : this.current_status.get(id).ison == true;
 
-            callback(null, isOn);
+            this.log.debug({currentStatus, characteristic, device})
+            callback(null, currentStatus);
         });
     }
 
@@ -277,15 +301,23 @@ class ShellySwitch {
                 if (err) {
                     return;
                 }
-    
+
                 let status = this.current_status.get(id);
                 let isOn = status.ison == true;
                 this.log.debug(`Reported current state for ${id}: ${isOn}`);
                 this.services.get(id).updateCharacteristic(Characteristic.On, isOn);
+
+                const device = this.devices.find(device => device.id === id);
+                this.log.debug(`device ${id}`, device);
+                if (device && this.isDimmer(device)) {
+                    const { brightness } = status;
+                    this.log.debug(`Reported current state for ${id}: brightness=${brightness}`);
+                    this.services.get(id).updateCharacteristic(Characteristic.Brightness, brightness);
+                }
             });
         });
     }
-    
+
     updateInterval() {
         return 30000;
     }
@@ -303,7 +335,7 @@ class ShellySwitch {
 
         this.clearUpdateTimer(id);
         this.status_timer.set(
-            id, 
+            id,
             setTimeout(() => { this.updateStatus(true, id); }, this.updateInterval()));
     }
 
@@ -323,15 +355,15 @@ class ShellySwitch {
             if (!this.status_callbacks.has(id)) {
                 this.status_callbacks.set(id, []);
             }
-    
+
             if (this.status_callbacks.get(id).length > 0) {
                 this.log.debug('Pushing status callback to queue - updating');
                 this.status_callbacks.get(id).push(callback);
                 return;
             }
-    
+
             const now = Date.now();
-    
+
             if (!forced && this.current_status.has(id) &&
                 this.current_status_time.has(id) &&
                 (now - this.current_status_time.get(id) < this.updateInterval())) {
@@ -339,15 +371,15 @@ class ShellySwitch {
                 callback(null);
                 return;
             }
-    
+
             this.clearUpdateTimer(id);
-    
+
             this.status_callbacks.get(id).push(callback);
 
             const device = this.devices[this.indexes.get(id)];
-    
+
             try {
-                let response = await this.sendJSONRequest({url: 'http://' + device.ip + '/relay/0', authentication: device.authentication});
+                let response = await this.sendJSONRequest({url: this.getGetStatusUrl(device), authentication: device.authentication});
                 this.current_status.set(id, response);
                 this.current_status_time.set(id, Date.now());
                 const callbacks = this.status_callbacks.get(id);
@@ -374,7 +406,11 @@ class ShellySwitch {
 
     }
 
-    isExposable(type) {
+  getGetStatusUrl(device) {
+    return this.isDimmer(device) ? `http://${device.ip}/light/0`    : `http://${device.ip}/relay/0`;
+  }
+
+  isExposable(type) {
         const exposable = type === 'momentary' || type === 'detached';
         this.log.debug(`Is ${type} exposable? ${exposable}`);
         return exposable;
@@ -427,7 +463,7 @@ class ShellySwitch {
                 res.on('data', (chunk) => { chunks += chunk; });
                 res.on('end', () => {
                     try {
-                        this.log.debug(`Raw response: ${chunks}`);
+                        this.log.debug(`Raw response: ${chunks}`, options, params.url);
                         const parsed = JSON.parse(chunks);
                         resolve(parsed);
                     } catch (e) {
@@ -447,5 +483,10 @@ class ShellySwitch {
 
             req.end();
         });
+    }
+
+    isDimmer(device) {
+        const { deviceType } = device;
+        return deviceType === DEVICE_TYPE_DIMMER;
     }
 }
